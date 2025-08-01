@@ -339,10 +339,58 @@ def answer_numerical_query(query: str, df: pd.DataFrame) -> Tuple[str, Optional[
     query_lower = query.lower()
     
     try:
+        # DURATION ANALYTICS
         # Average call duration
         if 'average' in query_lower and 'duration' in query_lower:
             avg_duration = df['call_duration_minutes'].mean()
             return f"The average call duration is **{avg_duration:.2f} minutes** ({avg_duration*60:.0f} seconds).", None
+        
+        # Longest/shortest calls
+        elif ('longest' in query_lower or 'maximum' in query_lower or 'max' in query_lower) and ('call' in query_lower or 'duration' in query_lower):
+            max_duration = df['call_duration_minutes'].max()
+            max_call = df[df['call_duration_minutes'] == max_duration].iloc[0]
+            return f"The longest call was **{max_duration:.2f} minutes** (Call ID: {max_call['call_id']}, Agent: {max_call['agent_name']}).", None
+        
+        elif ('shortest' in query_lower or 'minimum' in query_lower or 'min' in query_lower) and ('call' in query_lower or 'duration' in query_lower):
+            min_duration = df['call_duration_minutes'].min()
+            min_call = df[df['call_duration_minutes'] == min_duration].iloc[0]
+            return f"The shortest call was **{min_duration:.2f} minutes** (Call ID: {min_call['call_id']}, Agent: {min_call['agent_name']}).", None
+        
+        # Call duration distribution
+        elif 'duration' in query_lower and ('distribution' in query_lower or 'breakdown' in query_lower):
+            short_calls = (df['call_duration_minutes'] <= 3).sum()
+            medium_calls = ((df['call_duration_minutes'] > 3) & (df['call_duration_minutes'] <= 10)).sum()
+            long_calls = (df['call_duration_minutes'] > 10).sum()
+            
+            result = f"**Call Duration Distribution:**\n"
+            result += f"• Short calls (≤3 min): {short_calls:,} calls ({short_calls/len(df)*100:.1f}%)\n"
+            result += f"• Medium calls (3-10 min): {medium_calls:,} calls ({medium_calls/len(df)*100:.1f}%)\n"
+            result += f"• Long calls (>10 min): {long_calls:,} calls ({long_calls/len(df)*100:.1f}%)\n"
+            
+            # Create chart
+            categories = ['Short (≤3 min)', 'Medium (3-10 min)', 'Long (>10 min)']
+            values = [short_calls, medium_calls, long_calls]
+            fig = px.pie(values=values, names=categories, title='Call Duration Distribution')
+            
+            return result, fig
+        
+        # Positive/negative sentiment counts (prioritize over category detection)
+        elif ('positive' in query_lower or 'negative' in query_lower) and 'sentiment' in query_lower and 'calls' in query_lower:
+            positive_calls = (df['sentiment_score'] > 0).sum()
+            negative_calls = (df['sentiment_score'] < 0).sum()
+            neutral_calls = (df['sentiment_score'] == 0).sum()
+            
+            if 'positive' in query_lower:
+                result = f"There are **{positive_calls:,} calls** with positive sentiment ({positive_calls/len(df)*100:.1f}% of total calls)."
+            else:
+                result = f"There are **{negative_calls:,} calls** with negative sentiment ({negative_calls/len(df)*100:.1f}% of total calls)."
+            
+            # Create chart
+            labels = ['Positive', 'Negative', 'Neutral']
+            values = [positive_calls, negative_calls, neutral_calls]
+            fig = px.pie(values=values, names=labels, title='Sentiment Distribution')
+            
+            return result, fig
         
         # Specific category/classification queries (with "classified" keyword)
         elif 'how many' in query_lower and 'calls' in query_lower and ('classified' in query_lower or 'categorized' in query_lower or 'tagged' in query_lower):
@@ -397,12 +445,45 @@ def answer_numerical_query(query: str, df: pd.DataFrame) -> Tuple[str, Optional[
             total_calls = len(df)
             return f"There are **{total_calls:,} total calls** in the dataset.", None
         
+        # SENTIMENT ANALYTICS
         # Average sentiment score
         elif 'average' in query_lower and 'sentiment' in query_lower:
             avg_sentiment = df['sentiment_score'].mean()
             sentiment_label = "positive" if avg_sentiment > 0 else "negative" if avg_sentiment < 0 else "neutral"
             return f"The average sentiment score is **{avg_sentiment:.2f}** ({sentiment_label}).", None
         
+
+        
+        # Sentiment distribution
+        elif 'sentiment' in query_lower and ('distribution' in query_lower or 'breakdown' in query_lower):
+            positive_calls = (df['sentiment_score'] > 0).sum()
+            negative_calls = (df['sentiment_score'] < 0).sum()
+            neutral_calls = (df['sentiment_score'] == 0).sum()
+            
+            result = f"**Sentiment Distribution:**\n"
+            result += f"• Positive sentiment: {positive_calls:,} calls ({positive_calls/len(df)*100:.1f}%)\n"
+            result += f"• Negative sentiment: {negative_calls:,} calls ({negative_calls/len(df)*100:.1f}%)\n"
+            result += f"• Neutral sentiment: {neutral_calls:,} calls ({neutral_calls/len(df)*100:.1f}%)\n"
+            
+            # Create chart
+            labels = ['Positive', 'Negative', 'Neutral']
+            values = [positive_calls, negative_calls, neutral_calls]
+            fig = px.pie(values=values, names=labels, title='Sentiment Distribution')
+            
+            return result, fig
+        
+        # Highest/lowest sentiment calls
+        elif ('highest' in query_lower or 'best' in query_lower) and 'sentiment' in query_lower:
+            max_sentiment = df['sentiment_score'].max()
+            best_call = df[df['sentiment_score'] == max_sentiment].iloc[0]
+            return f"The highest sentiment score is **{max_sentiment:.2f}** (Call ID: {best_call['call_id']}, Agent: {best_call['agent_name']}).", None
+        
+        elif ('lowest' in query_lower or 'worst' in query_lower) and 'sentiment' in query_lower:
+            min_sentiment = df['sentiment_score'].min()
+            worst_call = df[df['sentiment_score'] == min_sentiment].iloc[0]
+            return f"The lowest sentiment score is **{min_sentiment:.2f}** (Call ID: {worst_call['call_id']}, Agent: {worst_call['agent_name']}).", None
+        
+        # RESOLUTION ANALYTICS
         # Resolution rate
         elif 'resolution' in query_lower and ('rate' in query_lower or 'percentage' in query_lower):
             resolved = (df['resolution_status'] == 'resolved').sum()
@@ -410,7 +491,31 @@ def answer_numerical_query(query: str, df: pd.DataFrame) -> Tuple[str, Optional[
             percentage = (resolved / total) * 100
             return f"The resolution rate is **{percentage:.1f}%** ({resolved:,} out of {total:,} calls resolved).", None
         
-        # Agent performance
+        # Resolution status breakdown
+        elif 'resolution' in query_lower and ('status' in query_lower or 'breakdown' in query_lower or 'distribution' in query_lower):
+            resolution_counts = df['resolution_status'].value_counts()
+            result = f"**Resolution Status Breakdown:**\n"
+            for status, count in resolution_counts.items():
+                percentage = (count / len(df)) * 100
+                result += f"• {status.title()}: {count:,} calls ({percentage:.1f}%)\n"
+            
+            # Create chart
+            fig = px.pie(
+                values=resolution_counts.values, 
+                names=resolution_counts.index, 
+                title='Resolution Status Distribution'
+            )
+            
+            return result, fig
+        
+        # Unresolved calls
+        elif ('unresolved' in query_lower or 'not resolved' in query_lower) and 'calls' in query_lower:
+            unresolved = (df['resolution_status'] != 'resolved').sum()
+            percentage = (unresolved / len(df)) * 100
+            return f"There are **{unresolved:,} unresolved calls** ({percentage:.1f}% of total calls).", None
+        
+        # AGENT ANALYTICS
+        # Best agent performance
         elif 'agent' in query_lower and ('highest' in query_lower or 'best' in query_lower or 'most' in query_lower):
             agent_stats = df.groupby('agent_name').agg({
                 'sentiment_score': 'mean',
@@ -437,6 +542,77 @@ def answer_numerical_query(query: str, df: pd.DataFrame) -> Tuple[str, Optional[
             else:
                 return "No agent performance data available.", None
         
+        # Agent workload (most calls handled)
+        elif ('agent' in query_lower or 'who' in query_lower) and ('workload' in query_lower or 'most calls' in query_lower or 'busiest' in query_lower):
+            agent_workload = df['agent_name'].value_counts()
+            top_agent = agent_workload.index[0]
+            top_count = agent_workload.iloc[0]
+            
+            result = f"**{top_agent}** handled the most calls with **{top_count:,} calls** ({top_count/len(df)*100:.1f}% of total)."
+            
+            # Create chart
+            fig = px.bar(
+                x=agent_workload.head(5).index,
+                y=agent_workload.head(5).values,
+                title='Top 5 Agents by Call Volume',
+                labels={'x': 'Agent', 'y': 'Number of Calls'}
+            )
+            fig.update_layout(xaxis_tickangle=-45)
+            
+            return result, fig
+        
+        # All agents summary
+        elif 'all agents' in query_lower or ('agent' in query_lower and ('list' in query_lower or 'summary' in query_lower)):
+            agent_summary = df.groupby('agent_name').agg({
+                'call_id': 'count',
+                'sentiment_score': 'mean',
+                'call_duration_minutes': 'mean'
+            }).reset_index()
+            agent_summary.columns = ['agent_name', 'total_calls', 'avg_sentiment', 'avg_duration']
+            agent_summary = agent_summary.sort_values('total_calls', ascending=False)
+            
+            result = f"**Agent Performance Summary:**\n"
+            for _, agent in agent_summary.iterrows():
+                result += f"• {agent['agent_name']}: {agent['total_calls']} calls, {agent['avg_sentiment']:.2f} sentiment, {agent['avg_duration']:.1f} min avg\n"
+            
+            # Create chart
+            fig = px.scatter(
+                agent_summary,
+                x='total_calls',
+                y='avg_sentiment',
+                size='avg_duration',
+                hover_name='agent_name',
+                title='Agent Performance Overview',
+                labels={'total_calls': 'Total Calls', 'avg_sentiment': 'Average Sentiment'}
+            )
+            
+            return result, fig
+        
+        # Specific agent queries
+        elif 'agent' in query_lower or any(name in query_lower for name in ['ethan', 'david', 'williams', 'martinez', 'olivia', 'liam']):
+            # Find agent name in query
+            agent_name = None
+            for name in df['agent_name'].unique():
+                if name.lower() in query_lower:
+                    agent_name = name
+                    break
+            
+            if agent_name:
+                agent_calls = df[df['agent_name'] == agent_name]
+                count = len(agent_calls)
+                avg_sentiment = agent_calls['sentiment_score'].mean()
+                avg_duration = agent_calls['call_duration_minutes'].mean()
+                resolution_rate = (agent_calls['resolution_status'] == 'resolved').mean() * 100
+                
+                result = f"**{agent_name} Performance:**\n"
+                result += f"• Total calls: {count:,}\n"
+                result += f"• Average sentiment: {avg_sentiment:.2f}\n"
+                result += f"• Average duration: {avg_duration:.1f} minutes\n"
+                result += f"• Resolution rate: {resolution_rate:.1f}%\n"
+                
+                return result, None
+        
+        # ISSUE CATEGORY ANALYTICS
         # Issue categories
         elif 'issue' in query_lower and ('category' in query_lower or 'categories' in query_lower):
             top_issues = df['issue_category'].value_counts().head(5)
@@ -455,6 +631,79 @@ def answer_numerical_query(query: str, df: pd.DataFrame) -> Tuple[str, Optional[
             fig.update_layout(xaxis_tickangle=-45)
             
             return result, fig
+        
+        # TIME-BASED ANALYTICS
+        # Calls per day/week/month
+        elif ('calls per' in query_lower or 'daily' in query_lower or 'weekly' in query_lower or 'monthly' in query_lower) and ('calls' in query_lower or 'volume' in query_lower):
+            daily_calls = df.groupby('call_date').size()
+            avg_daily = daily_calls.mean()
+            max_daily = daily_calls.max()
+            min_daily = daily_calls.min()
+            
+            result = f"**Call Volume Statistics:**\n"
+            result += f"• Average calls per day: {avg_daily:.1f}\n"
+            result += f"• Maximum calls in a day: {max_daily:,}\n"
+            result += f"• Minimum calls in a day: {min_daily:,}\n"
+            
+            # Create chart
+            fig = px.line(
+                x=daily_calls.index,
+                y=daily_calls.values,
+                title='Daily Call Volume Trend',
+                labels={'x': 'Date', 'y': 'Number of Calls'}
+            )
+            
+            return result, fig
+        
+        # Peak call times
+        elif 'peak' in query_lower or ('busiest' in query_lower and ('day' in query_lower or 'time' in query_lower)):
+            daily_calls = df.groupby('call_date').size()
+            busiest_day = daily_calls.idxmax()
+            busiest_count = daily_calls.max()
+            
+            return f"The busiest day was **{busiest_day}** with **{busiest_count:,} calls**.", None
+        
+        # LOCATION ANALYTICS
+        # All locations summary
+        elif 'location' in query_lower and ('all' in query_lower or 'summary' in query_lower or 'breakdown' in query_lower):
+            location_stats = df.groupby('location').agg({
+                'call_id': 'count',
+                'sentiment_score': 'mean',
+                'call_duration_minutes': 'mean'
+            }).reset_index()
+            location_stats.columns = ['location', 'total_calls', 'avg_sentiment', 'avg_duration']
+            location_stats = location_stats.sort_values('total_calls', ascending=False)
+            
+            result = f"**Location Performance Summary:**\n"
+            for _, loc in location_stats.iterrows():
+                result += f"• {loc['location']}: {loc['total_calls']} calls, {loc['avg_sentiment']:.2f} sentiment, {loc['avg_duration']:.1f} min avg\n"
+            
+            # Create chart
+            fig = px.bar(
+                location_stats,
+                x='location',
+                y='total_calls',
+                title='Calls by Location',
+                labels={'total_calls': 'Total Calls', 'location': 'Location'}
+            )
+            fig.update_layout(xaxis_tickangle=-45)
+            
+            return result, fig
+        
+        # Best/worst performing locations
+        elif 'location' in query_lower and ('best' in query_lower or 'worst' in query_lower or 'highest' in query_lower or 'lowest' in query_lower):
+            location_sentiment = df.groupby('location')['sentiment_score'].mean().sort_values(ascending=False)
+            
+            if 'best' in query_lower or 'highest' in query_lower:
+                best_location = location_sentiment.index[0]
+                best_score = location_sentiment.iloc[0]
+                call_count = len(df[df['location'] == best_location])
+                return f"**{best_location}** has the highest average sentiment score of **{best_score:.2f}** ({call_count} calls).", None
+            else:
+                worst_location = location_sentiment.index[-1]
+                worst_score = location_sentiment.iloc[-1]
+                call_count = len(df[df['location'] == worst_location])
+                return f"**{worst_location}** has the lowest average sentiment score of **{worst_score:.2f}** ({call_count} calls).", None
         
         # Calls by specific agent
         elif 'calls' in query_lower and any(name in query_lower for name in df['agent_name'].unique()):
@@ -605,32 +854,7 @@ def main():
     st.sidebar.metric("Avg Sentiment", f"{df['sentiment_score'].mean():.2f}")
     st.sidebar.metric("Available Embeddings", f"{len(embeddings):,}")
     
-    # Example queries
-    st.sidebar.subheader("💡 Example Questions")
-    
-    st.sidebar.markdown("**📈 Numerical Queries:**")
-    numerical_examples = [
-        "What is the average call duration?",
-        "Which agent has the highest sentiment score?",
-        "How many calls were resolved?",
-        "What are the top issue categories?",
-        "How many calls did Ethan Williams handle?"
-    ]
-    
-    st.sidebar.markdown("**🔍 Open-ended Queries:**")
-    openended_examples = [
-        "What do customers complain about most?",
-        "Summarize the main booking issues",
-        "How do customers feel about Chicago location?",
-        "What are the recent unresolved issues?"
-    ]
-    
-    all_examples = numerical_examples + openended_examples
-    
-    for example in all_examples:
-        if st.sidebar.button(example, key=f"ex_{hash(example)}"):
-            st.session_state.messages.append({"role": "user", "content": example})
-            st.rerun()
+
     
     # Initialize chat history
     if "messages" not in st.session_state:
