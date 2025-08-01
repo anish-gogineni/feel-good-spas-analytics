@@ -30,7 +30,7 @@ st.set_page_config(
 )
 
 # Configure OpenAI API
-openai.api_key = os.getenv('OPENAI_API_KEY') or 'your-api-key-here'
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 if not openai.api_key:
     st.error("❌ OpenAI API key not configured!")

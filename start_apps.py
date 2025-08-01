@@ -10,7 +10,8 @@ import time
 
 def set_api_key():
     """Set the OpenAI API key in environment"""
-    api_key = 'your-api-key-here'
+    # Replace with your actual API key before running
+    api_key = os.getenv('OPENAI_API_KEY', 'your-api-key-here')
     os.environ['OPENAI_API_KEY'] = api_key
     print("✅ OpenAI API key configured")
 
