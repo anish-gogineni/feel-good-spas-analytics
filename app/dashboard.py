@@ -12,6 +12,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
+import sys
+import os
+
+# Add parent directory to path for utils import
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.report_generator import generate_report_pdf
 
 # Configure page
 st.set_page_config(
@@ -402,6 +408,48 @@ def main():
             file_name=f"feel_good_spas_analytics_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
+
+    # PDF Insights Report Section
+    st.markdown("---")
+    st.subheader("📋 Executive Insights Report")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.markdown("""
+        **Generate a comprehensive business insights report** containing:
+        - Executive summary with key findings
+        - Strategic recommendations and action items
+        - KPI analysis with targets and status
+        - ROI projections and business impact assessment
+        - Next steps for management implementation
+        """)
+    
+    with col2:
+        st.markdown("") # Spacer
+        st.markdown("") # Spacer
+        
+        # PDF Download Button
+        if st.button("📄 Generate Insights Report (PDF)", type="primary", use_container_width=True):
+            with st.spinner("Generating professional insights report..."):
+                try:
+                    # Generate PDF using the filtered data
+                    pdf_content = generate_report_pdf(filtered_df)
+                    
+                    # Create download button
+                    st.download_button(
+                        label="📥 Download FeelGoodSpas_Insights.pdf",
+                        data=pdf_content,
+                        file_name="FeelGoodSpas_Insights.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    
+                    st.success("✅ Report generated successfully! Click the download button above.")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error generating report: {str(e)}")
+                    st.info("💡 Tip: Ensure the reportlab package is installed: `pip install reportlab>=4.0.0`")
 
 if __name__ == "__main__":
     main() 
