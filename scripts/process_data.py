@@ -12,13 +12,22 @@ columns for future sentiment analysis and categorization.
 import json
 import pandas as pd
 import logging
+import os
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import openai
+from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Configure OpenAI
+openai.api_key = os.getenv('OPENAI_API_KEY')
+if not openai.api_key:
+    logger.warning("OPENAI_API_KEY environment variable not set. AI enrichment will be skipped.")
 
 
 def extract_call_metadata(call_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -220,6 +229,141 @@ def load_vcon_data(file_path: Path) -> List[Dict[str, Any]]:
         raise
 
 
+def enrich_row_with_ai(row: pd.Series) -> pd.Series:
+    """
+    Enrich a single row with AI-generated sentiment, category, and resolution status.
+    
+    Args:
+        row: DataFrame row containing transcript and summary
+        
+    Returns:
+        Updated row with AI-generated values or original values if API fails
+    """
+    if not openai.api_key:
+        return row
+    
+    transcript = row.get('transcript', '')
+    summary = row.get('summary', '')
+    
+    # Skip if no content to analyze
+    if not transcript and not summary:
+        return row
+    
+    # Prepare content for analysis
+    content_to_analyze = f"Transcript: {transcript}\n\nSummary: {summary}"
+    
+    try:
+        prompt = """
+        Analyze this customer service call and provide:
+        1. sentiment_score: A float between -1 (very negative) and 1 (very positive)
+        2. issue_category: A short category (1-3 words) like "booking issue", "cancellation", "rescheduling"
+        3. resolution_status: One of "resolved", "unresolved", or "escalated"
+        
+        Respond ONLY with a JSON object in this exact format:
+        {
+            "sentiment_score": 0.2,
+            "issue_category": "booking issue",
+            "resolution_status": "resolved"
+        }
+        
+        Customer service call content:
+        """ + content_to_analyze[:3000]  # Limit content to avoid token limits
+        
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert customer service analyst. Provide accurate, concise analysis."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.1
+        )
+        
+        # Parse the response
+        response_text = response.choices[0].message.content.strip()
+        
+        try:
+            ai_analysis = json.loads(response_text)
+            
+            # Validate and apply the results
+            if 'sentiment_score' in ai_analysis:
+                # Ensure sentiment score is within bounds
+                sentiment = float(ai_analysis['sentiment_score'])
+                row['sentiment_score'] = max(-1.0, min(1.0, sentiment))
+            
+            if 'issue_category' in ai_analysis:
+                category = str(ai_analysis['issue_category']).strip().lower()
+                row['issue_category'] = category
+            
+            if 'resolution_status' in ai_analysis:
+                status = str(ai_analysis['resolution_status']).strip().lower()
+                if status in ['resolved', 'unresolved', 'escalated']:
+                    row['resolution_status'] = status
+            
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse AI response as JSON for call {row.get('call_id', 'unknown')}")
+    
+    except Exception as e:
+        logger.warning(f"AI enrichment failed for call {row.get('call_id', 'unknown')}: {e}")
+    
+    return row
+
+
+def enrich_dataframe_with_ai(df: pd.DataFrame, batch_size: int = 10) -> pd.DataFrame:
+    """
+    Enrich DataFrame with AI-generated analysis in batches.
+    
+    Args:
+        df: DataFrame to enrich
+        batch_size: Number of rows to process in each batch
+        
+    Returns:
+        Enriched DataFrame
+    """
+    if not openai.api_key:
+        logger.info("Skipping AI enrichment - no OpenAI API key configured")
+        return df
+    
+    logger.info(f"Starting AI enrichment for {len(df)} records in batches of {batch_size}")
+    
+    enriched_df = df.copy()
+    
+    # Process in batches with progress bar
+    for i in tqdm(range(0, len(df), batch_size), desc="AI Enrichment"):
+        batch_end = min(i + batch_size, len(df))
+        batch_indices = list(range(i, batch_end))
+        
+        logger.info(f"Processing batch {i//batch_size + 1}: rows {i+1}-{batch_end}")
+        
+        for idx in batch_indices:
+            try:
+                enriched_df.iloc[idx] = enrich_row_with_ai(enriched_df.iloc[idx])
+                
+                # Small delay to respect rate limits
+                time.sleep(0.1)
+                
+            except Exception as e:
+                logger.warning(f"Failed to enrich row {idx}: {e}")
+                continue
+        
+        # Longer delay between batches
+        if i + batch_size < len(df):
+            logger.info("Pausing between batches to respect rate limits...")
+            time.sleep(2)
+    
+    # Log enrichment statistics
+    sentiment_filled = enriched_df['sentiment_score'].notna().sum()
+    category_filled = enriched_df['issue_category'].notna().sum()
+    status_filled = enriched_df['resolution_status'].notna().sum()
+    
+    logger.info(f"AI enrichment completed:")
+    logger.info(f"  Sentiment scores: {sentiment_filled}/{len(df)} ({sentiment_filled/len(df)*100:.1f}%)")
+    logger.info(f"  Issue categories: {category_filled}/{len(df)} ({category_filled/len(df)*100:.1f}%)")
+    logger.info(f"  Resolution status: {status_filled}/{len(df)} ({status_filled/len(df)*100:.1f}%)")
+    
+    return enriched_df
+
+
 def save_processed_data(df: pd.DataFrame, output_path: Path) -> None:
     """
     Save processed DataFrame to CSV file.
@@ -259,6 +403,7 @@ def main():
     # Define file paths
     input_file = Path("data/feel-good-spas-vcons.json")
     output_file = Path("data/processed_calls.csv")
+    enriched_output_file = Path("data/processed_calls_enriched.csv")
     
     logger.info("Starting Feel Good Spas vCon data processing...")
     
@@ -294,11 +439,26 @@ def main():
         # Reorder columns to match schema
         df = df.reindex(columns=expected_columns)
         
-        # Save processed data
-        logger.info("Saving processed data...")
+        # Save basic processed data
+        logger.info("Saving basic processed data...")
         save_processed_data(df, output_file)
         
-        logger.info("Data processing completed successfully!")
+        # AI Enrichment Phase
+        logger.info("Starting AI enrichment phase...")
+        
+        if openai.api_key:
+            # Enrich with AI analysis
+            enriched_df = enrich_dataframe_with_ai(df, batch_size=10)
+            
+            # Save enriched data
+            logger.info("Saving AI-enriched data...")
+            save_processed_data(enriched_df, enriched_output_file)
+            
+            logger.info("Data processing and AI enrichment completed successfully!")
+        else:
+            logger.warning("OpenAI API key not found. Skipping AI enrichment.")
+            logger.info("To enable AI enrichment, set the OPENAI_API_KEY environment variable.")
+            logger.info("Basic data processing completed successfully!")
         
     except Exception as e:
         logger.error(f"Fatal error in data processing: {e}")
