@@ -1,6 +1,40 @@
 # Feel Good Spas Call Analysis Pipeline
 
-A comprehensive data processing pipeline for analyzing customer service calls from Feel Good Spas using AI-powered sentiment analysis, categorization, and resolution tracking.
+A comprehensive AI-powered customer service analytics platform that transforms raw conversation data into actionable business intelligence for Feel Good Spas management.
+
+## 🎯 **Project Deliverables**
+
+This project delivers four key outcomes as requested:
+
+### 1. 📋 [Insight & Strategy Plan](./BUSINESS_STRATEGY.md)
+**Business strategy document** outlining key insights and value propositions for Feel Good Spas managers, including:
+- Customer sentiment analysis and trends
+- Agent performance optimization strategies  
+- Issue category intelligence and resolution patterns
+- Operational efficiency metrics and recommendations
+- ROI projections and implementation roadmap
+
+### 2. 📊 [Transformed & Enriched Dataset](./scripts/process_data.py)
+**AI-enriched dataset** with comprehensive processing pipeline:
+- Raw vCon JSON → Clean CSV transformation
+- AI-powered sentiment analysis (GPT-4o-mini)
+- Automated issue categorization
+- Resolution status classification
+- **Output**: `data/processed_calls_enriched.csv`
+
+### 3. 📈 [Management Dashboard](./app/dashboard.py)
+**Interactive Streamlit dashboard** for real-time business insights:
+- KPI metrics (total calls, sentiment, resolution rate, duration)
+- Interactive charts (sentiment trends, agent performance, issue categories)
+- Advanced filtering (date range, location, agent)
+- **Run**: `streamlit run app/dashboard.py`
+
+### 4. 🤖 [Conversational AI System](./app/chat.py)
+**AI-powered chat assistant** for natural language analytics:
+- 25+ numerical query types (duration, sentiment, agent, resolution analytics)
+- Semantic search with text embeddings
+- GPT-4o-mini powered insights for complex questions
+- **Run**: `streamlit run app/chat.py --server.port 8502`
 
 ## 📋 Overview
 
