@@ -16,6 +16,21 @@ import pandas as pd
 import io
 
 
+def create_table_cell(text, style, max_width=None):
+    """
+    Create a properly formatted table cell with text wrapping.
+    
+    Args:
+        text (str): Cell content
+        style (ParagraphStyle): Text style
+        max_width (float): Maximum width for text wrapping
+        
+    Returns:
+        Paragraph: Formatted cell content
+    """
+    return Paragraph(str(text), style)
+
+
 def calculate_additional_metrics(df):
     """
     Calculate additional metrics beyond the basic KPIs.
@@ -178,58 +193,77 @@ def generate_report_pdf(df, filename="FeelGoodSpas_Insights.pdf"):
     # Key Insights Table
     story.append(Paragraph("Key Business Insights", heading_style))
     
+    # Create table cell styles
+    table_header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['Normal'],
+        fontSize=8,
+        leading=10,
+        textColor=white,
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT
+    )
+    
+    table_cell_style = ParagraphStyle(
+        'TableCell',
+        parent=styles['Normal'],
+        fontSize=7,
+        leading=9,
+        fontName='Helvetica',
+        alignment=TA_LEFT
+    )
+    
+    # Create insights data with Paragraph objects for proper text wrapping
     insights_data = [
-        ['Insight Area', 'Business Value', 'Recommended Action', 'Expected Outcome'],
         [
-            'Customer Sentiment Analysis',
-            'Identify satisfaction trends and at-risk customers',
-            'Proactive follow-up for negative sentiment calls',
-            'Increase retention 15-20%'
+            create_table_cell('Insight Area', table_header_style),
+            create_table_cell('Business Value', table_header_style),
+            create_table_cell('Recommended Action', table_header_style),
+            create_table_cell('Expected Outcome', table_header_style)
         ],
         [
-            'Agent Performance',
-            f'Best agent: {additional_metrics["best_agent_sentiment"]:.2f} sentiment score',
-            'Train agents using best practices',
-            'Improve sentiment +0.2 points'
+            create_table_cell('Sentiment Analysis', table_cell_style),
+            create_table_cell('Identify satisfaction trends and at-risk customers', table_cell_style),
+            create_table_cell('Proactive follow-up for negative calls', table_cell_style),
+            create_table_cell('15-20% retention increase', table_cell_style)
         ],
         [
-            'Issue Categories',
-            f'{additional_metrics["top_issue"]} dominates ({additional_metrics["top_issue_pct"]:.1f}%)',
-            'Targeted solutions for top categories',
-            'Reduce call volume 25%'
+            create_table_cell('Agent Performance', table_cell_style),
+            create_table_cell(f'Best agent: {additional_metrics["best_agent_sentiment"]:.2f} score', table_cell_style),
+            create_table_cell('Train using best practices', table_cell_style),
+            create_table_cell('+0.2 sentiment improvement', table_cell_style)
         ],
         [
-            'Resolution Rate',
-            f'Current {resolved_rate:.1f}% needs improvement',
-            'Advanced training and decision trees',
-            'Achieve 75%+ target'
+            create_table_cell('Issue Categories', table_cell_style),
+            create_table_cell(f'{additional_metrics["top_issue"]} dominates ({additional_metrics["top_issue_pct"]:.0f}%)', table_cell_style),
+            create_table_cell('Targeted category solutions', table_cell_style),
+            create_table_cell('25% call volume reduction', table_cell_style)
         ],
         [
-            'Call Duration',
-            f'{additional_metrics["long_calls_pct"]:.1f}% exceed normal duration',
-            'Streamline complex processes',
-            'Reduce time 2-3 minutes'
+            create_table_cell('Resolution Rate', table_cell_style),
+            create_table_cell(f'{resolved_rate:.0f}% needs improvement', table_cell_style),
+            create_table_cell('Advanced training & decision trees', table_cell_style),
+            create_table_cell('Achieve 75%+ target', table_cell_style)
+        ],
+        [
+            create_table_cell('Call Duration', table_cell_style),
+            create_table_cell(f'{additional_metrics["long_calls_pct"]:.0f}% exceed normal duration', table_cell_style),
+            create_table_cell('Streamline complex processes', table_cell_style),
+            create_table_cell('2-3 minute reduction', table_cell_style)
         ]
     ]
     
-    insights_table = Table(insights_data, colWidths=[1.8*inch, 1.6*inch, 1.8*inch, 1.4*inch])
+    insights_table = Table(insights_data, colWidths=[1.6*inch, 1.8*inch, 1.8*inch, 1.4*inch])
     insights_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), HexColor('#2E86AB')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), white),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 0), (-1, 0), 8),
         ('BACKGROUND', (0, 1), (-1, -1), HexColor('#F8F9FA')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
         ('GRID', (0, 0), (-1, -1), 0.5, black),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 1), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, HexColor('#F8F9FA')])
     ]))
     
@@ -239,34 +273,63 @@ def generate_report_pdf(df, filename="FeelGoodSpas_Insights.pdf"):
     # KPIs & Metrics Section
     story.append(Paragraph("Key Performance Indicators", heading_style))
     
+    # Create KPI data with Paragraph objects for proper text wrapping
     kpi_data = [
-        ['Metric', 'Current Value', 'Target', 'Status'],
-        ['Total Calls Analyzed', f'{total_calls:,}', 'N/A', '✓ Complete'],
-        ['Avg Sentiment Score', f'{avg_sentiment:.2f}', '0.35', '🔄 Improving' if avg_sentiment > 0 else '⚠️ Attention'],
-        ['Resolution Rate', f'{resolved_rate:.1f}%', '75%', '✓ Good' if resolved_rate > 70 else '⚠️ Improve'],
-        ['Avg Call Duration', f'{avg_duration:.1f} min', '5-7 min', '✓ Good' if avg_duration < 8 else '⚠️ High'],
-        ['Positive Sentiment', f'{additional_metrics["positive_pct"]:.1f}%', '60%+', '✓ Good' if additional_metrics["positive_pct"] > 50 else '⚠️ Low'],
-        ['Agent Team Size', f'{additional_metrics["total_agents"]} agents', 'Optimal', '✓ Staffed']
+        [
+            create_table_cell('Metric', table_header_style),
+            create_table_cell('Current Value', table_header_style),
+            create_table_cell('Target', table_header_style),
+            create_table_cell('Status', table_header_style)
+        ],
+        [
+            create_table_cell('Total Calls Analyzed', table_cell_style),
+            create_table_cell(f'{total_calls:,}', table_cell_style),
+            create_table_cell('N/A', table_cell_style),
+            create_table_cell('✓ Complete', table_cell_style)
+        ],
+        [
+            create_table_cell('Avg Sentiment Score', table_cell_style),
+            create_table_cell(f'{avg_sentiment:.2f}', table_cell_style),
+            create_table_cell('0.35', table_cell_style),
+            create_table_cell('🔄 Improving' if avg_sentiment > 0 else '⚠️ Attention', table_cell_style)
+        ],
+        [
+            create_table_cell('Resolution Rate', table_cell_style),
+            create_table_cell(f'{resolved_rate:.0f}%', table_cell_style),
+            create_table_cell('75%', table_cell_style),
+            create_table_cell('✓ Good' if resolved_rate > 70 else '⚠️ Improve', table_cell_style)
+        ],
+        [
+            create_table_cell('Avg Call Duration', table_cell_style),
+            create_table_cell(f'{avg_duration:.1f} min', table_cell_style),
+            create_table_cell('5-7 min', table_cell_style),
+            create_table_cell('✓ Good' if avg_duration < 8 else '⚠️ High', table_cell_style)
+        ],
+        [
+            create_table_cell('Positive Sentiment', table_cell_style),
+            create_table_cell(f'{additional_metrics["positive_pct"]:.0f}%', table_cell_style),
+            create_table_cell('60%+', table_cell_style),
+            create_table_cell('✓ Good' if additional_metrics["positive_pct"] > 50 else '⚠️ Low', table_cell_style)
+        ],
+        [
+            create_table_cell('Agent Team Size', table_cell_style),
+            create_table_cell(f'{additional_metrics["total_agents"]} agents', table_cell_style),
+            create_table_cell('Optimal', table_cell_style),
+            create_table_cell('✓ Staffed', table_cell_style)
+        ]
     ]
     
-    kpi_table = Table(kpi_data, colWidths=[2.2*inch, 1.4*inch, 1.0*inch, 1.6*inch])
+    kpi_table = Table(kpi_data, colWidths=[2.0*inch, 1.5*inch, 1.0*inch, 1.7*inch])
     kpi_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), HexColor('#2E86AB')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), white),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 0), (-1, 0), 8),
         ('BACKGROUND', (0, 1), (-1, -1), HexColor('#F8F9FA')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('GRID', (0, 0), (-1, -1), 0.5, black),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, HexColor('#F8F9FA')])
     ]))
     
